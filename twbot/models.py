@@ -11,13 +11,20 @@ from django.db.models.signals import post_save, pre_delete
 
 from conf import AVD_PACKAGES, AVD_DEVICES
 from constants import ACC_BATCH
-from core.models import User, TimeStampModel
+from core.models import User
+# from django.contrib.auth.models import  User
 from main import LOGGER
 from twbot.cyberghostvpn import CyberGhostVpn
 from twbot.vpn.nord_vpn import NordVpn
 
 
 # Create your models here.
+class TimeStampModel(models.Model):
+    created = models.DateTimeField(auto_now_add=True)
+    updated = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        abstract = True
 
 class Reddit_accounts(models.Model):
     username = models.CharField(max_length=50,unique=True)
@@ -28,7 +35,6 @@ class Reddit_accounts(models.Model):
     def __str__(self):
         return self.username
     
-
 class TwitterAccount(TimeStampModel):
     ACC_TYPE = (
         ("ART", "ART"),
@@ -65,236 +71,10 @@ class TwitterAccount(TimeStampModel):
         max_length=100, choices=ACC_BATCH, null=True, blank=True
     )
     internal_following = models.ManyToManyField("self", blank=True)
-
-    other_following = models.ManyToManyField("TwitterOtherAccount", blank=True)
     profile_updated = models.BooleanField(default=False)
 
     def __str__(self):
         return self.screen_name
-
-class Phone(TimeStampModel):
-    number = models.CharField(max_length=15, null=True, blank=True)
-    pid = models.CharField(max_length=8, null=True, blank=True)
-    user = models.ForeignKey(TwitterAccount, on_delete=models.DO_NOTHING,
-            null=True, blank=True, related_name='number')
-    is_banned = models.BooleanField(default=False)
-    ban_result = models.CharField(max_length=256, null=True, blank=True)
-
-    def __str__(self):
-        return self.number
-
-class Sms(TimeStampModel):
-    number = models.ForeignKey(Phone, on_delete=models.DO_NOTHING)
-    content = models.CharField(max_length=256)
-
-    CREATE_ACCOUNT = 1
-    VERIFY_ACCOUNT = 2
-    PURPOSE = (
-        (CREATE_ACCOUNT, "For creating account"),
-        (VERIFY_ACCOUNT, "For verifying account"),
-    )
-    purpose = models.SmallIntegerField(choices=PURPOSE, null=True, blank=True)
-
-    def __str__(self):
-        return f'{self.number}, {self.content}'
-
-class TwitterTargetAccount(TimeStampModel):
-    STATUS = (
-        ("ACTIVE", "ACTIVE"),
-        ("TESTING", "TESTING"),
-        ("INACTIVE", "INACTIVE"),
-        ("BANNED", "BANNED"),
-        ("SUSPENDED", "SUSPENDED"),
-    )
-
-    full_name = models.CharField(max_length=48, null=True, blank=True)
-    status = models.CharField(max_length=100, choices=STATUS, default="ACTIVE")
-    screen_name = models.CharField(max_length=15, null=True, blank=True)
-
-    def __str__(self):
-        return self.screen_name or self.full_name
-
-
-class TwitterOtherAccount(TimeStampModel):
-    STATUS = (
-        ("ACTIVE", "ACTIVE"),
-        ("TESTING", "TESTING"),
-        ("INACTIVE", "INACTIVE"),
-        ("BANNED", "BANNED"),
-        ("SUSPENDED", "SUSPENDED"),
-    )
-
-    full_name = models.CharField(max_length=48, null=True, blank=True)
-    status = models.CharField(max_length=100, choices=STATUS, default="ACTIVE")
-    screen_name = models.CharField(max_length=15, null=True, blank=True)
-
-    def __str__(self):
-        return self.screen_name or self.full_name
-
-
-class TwitterUser(TimeStampModel):
-    username = models.CharField(max_length=255, null=True, blank=True)
-    screen_name = models.CharField(max_length=255, null=True, blank=True)
-
-
-class ActionType(TimeStampModel):
-    CREATE_ACCOUNT = 1
-    FOLLOW_ACCOUNT = 2
-    LIKE_TWEET = 3
-    RETWEET_TWEET = 4
-    COMMENT_TWEET = 5
-    CREATE_TWEET = 6
-    LOGIN_APP = 7
-    LOGOUT_APP = 8
-    UNFOLLOW_ACCOUNT = 9
-
-    ACTION_TYPE = (
-        (CREATE_ACCOUNT, "Create an account"),
-        (FOLLOW_ACCOUNT, "Follow an account"),
-        (LIKE_TWEET, "Like a tweet"),
-        (RETWEET_TWEET, "Retweet a tweet"),
-        (COMMENT_TWEET, "Comment on a tweet"),
-        (CREATE_TWEET, "Create a tweet"),
-        (LOGIN_APP, 'Login twitter'),
-        (LOGOUT_APP, "Logout twitter"),
-        (UNFOLLOW_ACCOUNT, "Unfollow an account"),
-    )
-
-    id = models.SmallIntegerField(choices=ACTION_TYPE, primary_key=True)
-    text = models.CharField(max_length=64, blank=True, null=True)
-    remark = models.CharField(max_length=128, null=True, blank=True)
-
-    def __str__(self):
-        return self.text
-
-
-class ActionResult:
-    SUCCESSFUL = 0
-    FAILED = 1
-    RESULT = (
-        (SUCCESSFUL, 'Successful'),
-        (FAILED, 'Failed'),
-    )
-
-
-class ActionForBotAccount(TimeStampModel):
-    owner = models.ForeignKey(TwitterAccount, on_delete=models.DO_NOTHING)
-    action = models.ForeignKey(ActionType, on_delete=models.DO_NOTHING)
-    result = models.SmallIntegerField(choices=ActionResult.RESULT)
-    object = models.ForeignKey(TwitterAccount, on_delete=models.DO_NOTHING,
-                               null=True, blank=True, related_name='object')
-
-    def __str__(self):
-        return f"Action owner: {self.owner}, action: {self.action}"
-
-
-class ActionForTargetAccount(TimeStampModel):
-    owner = models.ForeignKey(TwitterAccount, on_delete=models.DO_NOTHING)
-    action = models.ForeignKey(ActionType, on_delete=models.DO_NOTHING)
-    result = models.SmallIntegerField(choices=ActionResult.RESULT)
-    object = models.ForeignKey(TwitterTargetAccount,
-            on_delete=models.DO_NOTHING, null=True, blank=True)
-    tweet = models.ForeignKey('TweetForTargetAccount',
-            on_delete=models.DO_NOTHING, null=True, blank=True)
-
-    def __str__(self):
-        return f"Action owner: {self.owner}, action: {self.action}"
-
-
-class ActionForOtherAccount(TimeStampModel):
-    owner = models.ForeignKey(TwitterAccount, on_delete=models.DO_NOTHING)
-    action = models.ForeignKey(ActionType, on_delete=models.DO_NOTHING)
-    result = models.SmallIntegerField(choices=ActionResult.RESULT)
-    object = models.ForeignKey(TwitterOtherAccount,
-                               on_delete=models.DO_NOTHING, null=True, blank=True)
-
-    def __str__(self):
-        return f"Action owner: {self.owner}, action: {self.action}"
-
-
-class CompetitorUserDetials(TimeStampModel):
-    target_user = models.CharField(max_length=255, null=True, blank=True)
-    followers = models.ManyToManyField(TwitterUser, related_name="followers")
-    following = models.ManyToManyField(TwitterUser, related_name="following")
-
-
-class TwitterJob(TimeStampModel):
-    JOB_TYPE = (
-        ("TWEET_TEXT", "TWEET_TEXT"),
-        ("TWEET_IMAGE", "TWEET_IMAGE"),
-        ("TWEET", "TWEET"),
-        ("LIKE", "LIKE"),
-        ("RETWEET", "RETWEET"),
-        ("FOLLOW_SINGLE_USER", "FOLLOW_SINGLE_USER"),
-        ("UNFOLLOW", "UNFOLLOW"),
-        ("MULTIPLE_FOLLOW", "MULTIPLE_FOLLOW"),
-    )
-    JOB_STATUS = (
-        ("P", "PENDING"),
-        ("C", "COMPLETED"),
-        ("F", "FAILED"),
-        ("I", "In-progress"),
-        ("CN", "CANCELED"),
-    )
-    user = models.ForeignKey(User, on_delete=models.CASCADE)
-    twitter_account = models.ForeignKey(
-        TwitterAccount, blank=True, null=True, on_delete=models.CASCADE
-    )
-    job_type = models.CharField(max_length=100, choices=JOB_TYPE)
-    target_username = models.ManyToManyField(
-        TwitterUser, related_name="target_insta_users"
-    )
-    status = models.CharField(max_length=2, choices=JOB_STATUS, blank=True, null=True)
-    tweet_id = models.CharField(max_length=255, blank=True, null=True)
-    image_path = models.CharField(max_length=255, blank=True, null=True)
-    text_message = models.CharField(max_length=255, blank=True, null=True)
-    follow_user = models.CharField(max_length=100, null=True, blank=True)
-    last_error = models.TextField(null=True, blank=True)
-
-
-class Tweet(TimeStampModel):
-    #  tweet_id = models.CharField(max_length=100, unique=True)
-    tweet_id = models.CharField(max_length=100)
-    text = models.CharField(max_length=1000, null=True, blank=True)
-    image = ArrayField(
-        models.CharField(max_length=500, default=" "), null=True, blank=True
-    )
-    tweeted = models.BooleanField(default=False)
-    tweet_meta = JSONFieldPostgres(default=dict, blank=True, null=True)
-    video = ArrayField(
-        models.CharField(max_length=500, default=" "), null=True, blank=True
-    )
-    likes = models.CharField(max_length=50, null=True, blank=True)
-    retweet = models.CharField(max_length=50, null=True, blank=True)
-    screen_name = models.CharField(max_length=50, null=True, blank=True)
-    status = models.BooleanField(default=False)
-
-class TweetForTargetAccount(TimeStampModel):
-    ACTIVE = 1
-    DELETED = 2
-    TWEET_STATUS = (
-        (ACTIVE, "Active"),
-        (DELETED, "Deleted"),
-    )
-
-    owner = models.ForeignKey(TwitterTargetAccount,
-            on_delete=models.DO_NOTHING, null=True, blank=True)
-    text = models.CharField(max_length=512, null=True, blank=True)
-    publish_time = models.CharField(max_length=32, null=True, blank=True)
-    like_count = models.CharField(max_length=16, null=True, blank=True)
-    retrweet_count = models.CharField(max_length=16, null=True, blank=True)
-    comment_count = models.CharField(max_length=16, null=True, blank=True)
-    status = models.SmallIntegerField(choices=TWEET_STATUS, default=ACTIVE)
-    is_retweeted = models.BooleanField(default=False)
-
-    def __str__(self):
-        #  return self.text
-        return f'{self.id}'
-
-class Comment(TimeStampModel):
-    tweet = models.ForeignKey(Tweet, on_delete=models.CASCADE)
-    comment = models.CharField(max_length=1000, null=True, blank=True)
-    is_used = models.BooleanField(default=False)
 
 class UserAvd(TimeStampModel):
     prox_type = (
@@ -433,25 +213,3 @@ class TwitterActionLog(TimeStampModel):
     action = models.CharField(max_length=250, null=True, blank=True)
     error = JSONFieldPostgres(default=dict, blank=True, null=True)
 
-
-class EngageTask(TimeStampModel):
-    likes = models.IntegerField()
-    follows = models.IntegerField()
-    retweets = models.IntegerField()
-    comments = models.IntegerField()
-    failed = JSONFieldPostgres(default=dict, blank=True, null=True)
-    comment_text = JSONFieldPostgres(default=dict, blank=True, null=True)
-    batch = models.CharField(max_length=32, blank=True, null=True)
-    tweet_url = models.CharField(max_length=2083, blank=True, null=True)
-
-
-class UrlEngageTask(TimeStampModel):
-    STATUS = (
-        ("PENDING", "PENDING"),
-        ("FAILED", "FAILED"),
-        ("COMPLETED", "COMPLETED")
-    )
-
-    avds = models.ManyToManyField(UserAvd)
-    tweet_url = models.CharField(max_length=2083, blank=True, null=True)
-    status = models.CharField(max_length=32, choices=STATUS, blank=True, null=True, default="PENDING")

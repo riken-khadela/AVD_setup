@@ -25,7 +25,6 @@ from exceptions import GetSmsCodeNotEnoughBalance
 from main import LOGGER
 from surviral_avd.settings import BASE_DIR
 from twbot.models import TwitterActionLog, UserAvd, TwitterAccount
-from twbot.models import Tweet, Comment, Phone, Sms
 from utils import get_comment
 
 

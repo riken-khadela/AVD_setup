@@ -151,13 +151,7 @@ class Command(BaseCommand):
             for i in range(self.parallel_number):
                 executor.submit(self.run_tasks, requied_account_list[i])
         print(f" All created UserAvd and TwitterAccount ****\n")
-        print(self.avd_pack)
-        for x, y in self.avd_pack:
-            uavd = UserAvd.objects.filter(id=x)
-            tw_ac = TwitterAccount.objects.filter(id=y)
-            if uavd and tw_ac:
-                UserAvd.objects.filter(id=x).update(twitter_account_id=y)
-
+        
         random_sleep(10, 30)
 
     def clean_bot(self, tb, is_sleep=True):
