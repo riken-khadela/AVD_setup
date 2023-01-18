@@ -37,6 +37,7 @@ class TwitterBot:
         self.adb = AdbClient() if start_adb else None
         self.device = None
         self.phone = (
+            
             self.user_avd.twitter_account.phone
             if self.user_avd.twitter_account
             else None
