@@ -212,4 +212,20 @@ class TwitterActionLog(TimeStampModel):
     msg = JSONFieldPostgres(default=dict, blank=True, null=True)
     action = models.CharField(max_length=250, null=True, blank=True)
     error = JSONFieldPostgres(default=dict, blank=True, null=True)
-
+    
+class LetestMsg(TimeStampModel):
+    CHANNEL = (
+        ('ENGLISH','ENGLISH'),
+        ('JP','JP')
+    )
+    message = models.TextField(null=False,blank=False)
+    reaction = ArrayField(ArrayField(models.CharField(null=True,blank=True,max_length=50)))
+    channel = models.CharField(max_length=100, choices=CHANNEL, default="ENGLISH")
+    
+    def __str__(self):
+        return str(self.message)
+class reaction_onAnnouncement(TimeStampModel):
+    reaction_BY = models.ForeignKey(UserAvd,on_delete=models.CASCADE)
+    reaction_ON = models.ForeignKey(LetestMsg,on_delete=models.CASCADE)
+    reaction = models.CharField(max_length=50)
+    

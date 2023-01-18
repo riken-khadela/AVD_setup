@@ -21,7 +21,19 @@ from utils import get_installed_packages
 from utils import run_cmd
 from verify import RecaptchaAndroidUI, FuncaptchaAndroidUI
 from accounts_conf import GETSMSCODE_PID
+from .models import reaction_onAnnouncement, LetestMsg
 
+PatternLi = [
+            ['thumbsup','heart','tada','heart_eyes','fire','heart_on_fire','rocket','raised_hands','gem','sparkles','beers','penguin'],
+            ['tada','fire','heart','rocket','raised_hands','gem','sparkles','beers','thumbsup','heart_on_fire','penguin','heart_eyes'],
+            ['rocket','thumbsup','fire','heart_on_fire','sparkles','tada','raised_hands','heart_eyes','heart','beers','gem','penguin']
+        ]
+RecommandedReaction = reaction = random.choice(PatternLi)
+pattern = []
+for i in reaction:
+    pattern.append([i,'0'])
+PatternLi = []
+print(pattern)
 timeout = 10
 
 class TwitterBot:
@@ -796,9 +808,164 @@ class TwitterBot:
             self.logger.info(f'Got an error in input text :{element} {e}')
 
     def create_account(self):
-        # self.driver.activate_app('com.reddit.frontpage')
-        self.app_driver.start_activity('com.reddit.frontpage','com.reddit.frontpage.MainActivity')
-        sign_up_id = 'com.reddit.frontpage:id/signup_button'
-        self.click_element('Sign up btn',sign_up_id,By.ID)
+        
+        # install apk if not installed
+        if not self.driver().is_app_installed('com.discord') :
+            self.driver().install_app('/media/riken/0B29CA554279F37D/Workspace/Discord/apk/discord.apk')
+
+        # start discord
+        self.driver().activate_app("com.discord")
+        
+        # make user inactivate if user is not logged in
+        login_btn = self.find_element('Login btn','com.discord:id/auth_landing_login',By.ID,timeout=3)
+        if login_btn :
+            self.user_avd.status = "INACTIVE"
+            self.user_avd.save()
+            return
+        
+        self.click_element('email pop up','com.discord:id/discord_hub_email_no',By.ID,timeout=2)
+        self.click_element('rating','com.discord:id/notice_cancel',By.ID,timeout=2)
+        
+        
+        
+        channel_li = ['📣announcement','📣announcement-jp']
+        
+        for channel in channel_li:
+            self.channel = channel
+            self.click_element('Toggle drawer','//android.widget.ImageButton[@content-desc="Toggle drawer"]',timeout=3)
+            self.click_element('Search btn','com.discord:id/tabs_host_bottom_nav_search_item',By.ID)
+            self.input_text(channel,'search bat','com.discord:id/global_search_bar_text',By.ID)
+            
+            for i in range(1,3):
+                searched_ele = self.find_element('search result',f'/hierarchy/android.widget.FrameLayout/android.widget.FrameLayout/android.widget.FrameLayout/android.widget.FrameLayout/android.view.ViewGroup/android.widget.ViewFlipper/androidx.recyclerview.widget.RecyclerView/android.view.ViewGroup[{i}]/android.widget.TextView[1]')
+                if searched_ele :
+                    time.sleep(1)
+                    if searched_ele.text == channel:
+                        searched_ele.click()
+                        break
+            self.PhoneVerification()
+            go_down_btn = self.click_element('go to latest msg','com.discord:id/chat_overlay_old_messages_fab',By.ID,timeout=2)
+            if not go_down_btn : 
+                for _ in range(4): self.swipe_up()
+            
+            self.GetTimeStemp()
+            self.UpdateLetestMessage()                        
+            self.Reaction()
+            
+        input('Enter :')
+        
+    def GetTimeStemp(self):
+        for i in range(6):
+                self.TimeStemp = self.find_element('Time stemp','com.discord:id/chat_list_adapter_item_text_timestamp',By.ID,timeout=2)
+                if not self.TimeStemp :self.swipe_down() ; continue
+                date = 'yesterday'
+                # if ('Today' or 'Yesterday') in self.TimeStemp.text :
+                if date in self.TimeStemp.text.lower() :
+                    # self.UpdateLetestMessage()                        
+                    # self.Reaction()
+                    break
+    
+    def UpdateLetestMessage(self):
+        chat_text = ''
+        all_chat = []
+        for i in self.driver().find_elements(By.XPATH,'/hierarchy/android.widget.FrameLayout/android.widget.LinearLayout/android.widget.FrameLayout/android.widget.LinearLayout/android.widget.FrameLayout/android.view.ViewGroup/android.widget.FrameLayout/android.widget.FrameLayout[2]/android.widget.FrameLayout/android.widget.FrameLayout/android.widget.RelativeLayout/android.view.ViewGroup/android.widget.FrameLayout[1]/androidx.recyclerview.widget.RecyclerView//*') :
+            if i.get_attribute('resource-id') == "com.discord:id/chat_list_adapter_item_text" :
+                all_chat.append(i.get_attribute('text'))
+                
+        chat_text = all_chat[-1]
+        ChannelType = 'ENGLISH' if not 'jp' in self.channel else 'JP'
+        
+        if not LetestMsg.objects.filter(message=chat_text).exists() :
+            
+            self.MsgObj = LetestMsg.objects.create(
+                                message=chat_text,
+                                channel = ChannelType,
+                                reaction = [[]]
+                            )
+        else:
+            self.MsgObj = LetestMsg.objects.get(
+                            message=chat_text,
+                            channel = ChannelType
+                        )
+        print(self.MsgObj,'-22222222222222222')
+        print(self.MsgObj.reaction,'-3333333333333')
+    
+    def GetNewPattern(self):
+        for _ in range(3): self.swipe_up()
+        ptnsLii = []
+        NewPattern = []
+        all_review_finder = self.driver().find_elements(By.XPATH,'/hierarchy/android.widget.FrameLayout/android.widget.LinearLayout/android.widget.FrameLayout/android.widget.LinearLayout/android.widget.FrameLayout/android.view.ViewGroup/android.widget.FrameLayout/android.widget.FrameLayout[2]/android.widget.FrameLayout/android.widget.FrameLayout/android.widget.RelativeLayout/android.view.ViewGroup/android.widget.FrameLayout[1]/androidx.recyclerview.widget.RecyclerView/android.view.ViewGroup/*')[-1]
+        reaction_ = []
+        for review_reaction in all_review_finder.find_elements(By.XPATH,'//android.view.ViewGroup/android.widget.LinearLayout//*'):
+            reviews_texts = review_reaction.get_attribute('text')
+            if reviews_texts:
+                try: 
+                    reviews_texts = int(reviews_texts)
+                    reaction_.append(str(reviews_texts))
+                    NewPattern.append(reaction_)
+                    reaction_ = []
+                except Exception as e:
+                    reaction_.append(reviews_texts.replace('\u200a',''))
+        self.MsgObj.reaction = self.NewPattern = NewPattern
+        self.MsgObj.save()
+        return self.NewPattern
+    
+    
+    def Reaction(self):
+        
+        if not self.NewPattern : self.GetNewPattern()
+        ReactionLi = self.MsgObj.reaction
         breakpoint()
-        return True
+        require_new_pattern = False if len(ReactionLi) >= 12 else True
+        previous_count = 0
+        self.GetTimeStemp()
+        if not require_new_pattern :
+            for i in ReactionLi :
+                emoji = i[0]
+                count = int(i[-1])
+                if previous_count == 0:
+                    reaction_onAnnouncement.objects.create(
+                            reaction_BY = UserAvd.objects.get(name=self.emulator_name),
+                            reaction_ON = self.MsgObj,
+                            reaction = emoji
+                    )
+                    self.emoji(name=str(emoji))
+                    previous_count = int(count)
+                elif count < (previous_count - 15):
+                    reaction_onAnnouncement.objects.create(
+                            reaction_BY = UserAvd.objects.get(name=self.emulator_name),
+                            reaction_ON = self.MsgObj,
+                            reaction = emoji
+                    )
+                    self.emoji(name=str(emoji))
+                    previous_count = int(count)
+        else :
+            for i in RecommandedReaction:
+                reaction_onAnnouncement.objects.create(
+                        reaction_BY = UserAvd.objects.get(name=self.emulator_name),
+                        reaction_ON = self.MsgObj,
+                        reaction = i
+                )
+                self.emoji(name=str(i))
+        
+    def emoji(self,name=''):
+        actions = TouchAction(self.driver)
+        post=self.driver().find_element(By.ID,'com.discord:id/chat_list_adapter_item_text_header')
+        actions.long_press(post)
+        actions.perform()
+        time.sleep(1.5)
+        self.driver().find_element(By.XPATH,'//android.widget.ImageView[@content-desc="Show More Emoji"]').click()
+        time.sleep(1.5)
+        self.driver().find_element(By.CLASS_NAME,"android.widget.EditText").send_keys(f"{name}")
+        self.driver().find_element(By.XPATH,f'//android.widget.ImageView[@content-desc="{name}"]').click()
+        time.sleep(1.5)
+        try: self.driver().hide_keyboard()
+        except Exception as e: ...
+        
+    def PhoneVerification(self):
+        phoneverify = self.find_element('phone verification','com.discord:id/chat_input_member_verification_guard_text',By.ID,timeout=2)
+        if phoneverify :
+            phoneverify.click()
+            for _ in range(2): self.swipe_up()
+            self.click_element('checkbox','com.discord:id/setting_button',By.ID,timeout=2)
+            self.click_element('verification rule','com.discord:id/member_verification_rules_confirm',By.ID,timeout=0)
